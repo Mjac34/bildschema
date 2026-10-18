@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#283593">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>Bildschema</title>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <pattern id="pj" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="#e8eaf6"/><rect width="12" height="6" fill="#9fa8da"/></pattern>
+  <pattern id="quilt" width="24" height="24" patternUnits="userSpaceOnUse"><rect width="24" height="24" fill="#ef9a9a"/><rect width="12" height="12" fill="#f8bbd0"/><rect x="12" y="12" width="12" height="12" fill="#f8bbd0"/></pattern>
+  <radialGradient id="glowGrad"><stop offset="0" stop-color="#fff59d" stop-opacity=".75"/><stop offset="1" stop-color="#fff59d" stop-opacity="0"/></radialGradient>
+  <clipPath id="hgTop"><path d="M22 20 C22 65 54 80 56 100 L64 100 C66 80 98 65 98 20Z"/></clipPath>
+  <clipPath id="hgBot"><path d="M56 100 C54 120 22 135 22 180 L98 180 C98 135 66 120 64 100Z"/></clipPath>
+</defs></svg>
+
+<div id="home" class="screen active"><div class="wrap">
+  <div class="top"><div style="flex:1"></div><button class="round" id="gearBtn" aria-label="Inställningar (håll in)">⚙️</button></div>
+  <h1>Bildschema</h1>
+  <div class="bigbtns">
+    <button class="big day" id="goDay"><span id="dayArt"></span>Idag<span class="sub" id="daySub"></span></button>
+    <button class="big eve" id="goEve"><span id="eveArt"></span>Ikväll<span class="sub" id="eveSub"></span></button>
+    <button class="big book" id="goBook"><span id="bookArt"></span><span>Samlarbok<br><span class="sub" id="bookSub"></span></span></button>
+  </div>
+  <p class="tip">Håll in ⚙️ en sekund för inställningar. Vuxenrutan (hjärtat) godkänns genom att hålla in den.</p>
+</div></div>
+
+<div id="routine" class="screen"><div class="wrap">
+  <div class="rhead">
+    <div class="top"><button class="round" data-home>🏠</button><h2 id="rTitle"></h2><div id="buddy"></div></div>
+    <div class="path" id="path"></div>
+  </div>
+  <div class="steps" id="steps"></div>
+  <button class="next" id="rNext"></button>
+</div></div>
+
+<div id="plan" class="screen"><div class="wrap">
+  <div class="top"><button class="round" data-home>🏠</button><h2 id="pTitle"></h2></div>
+  <div class="planrow" id="planRow"></div>
+  <div class="tools" id="planTools"><button class="round" id="pLeft">◀</button><button class="round" id="pDel">🗑️</button><button class="round" id="pRight">▶</button></div>
+  <div class="h3">Lägg till:</div>
+  <div class="lib" id="planLib"></div>
+  <button class="next" id="planDone"></button>
+</div></div>
+
+<div id="natta" class="screen">
+  <div class="top"><button class="round" data-home>🏠</button><h2 id="nTitle"></h2></div>
+  <div id="scene"></div>
+  <button class="bigaction" id="kissBtn" aria-label="Godnattpuss">💋</button>
+  <button class="bigaction" id="sleepBtn">🌙 Sov gott</button>
+</div>
+
+<div id="book" class="screen"><div class="wrap">
+  <div class="top"><button class="round" data-home>🏠</button><h2>Samlarbok</h2></div>
+  <div class="page" id="page"></div>
+  <div class="pager"><button class="round" id="prevPage">◀</button><span id="pageNo"></span><button class="round" id="nextPage">▶</button></div>
+  <div class="h3">Djur att natta</div>
+  <div class="zoo" id="zoo"></div>
+  <button class="next" id="bookSleep">🌙 Sov gott</button>
+</div></div>
+
+<div id="settings" class="screen"><div class="wrap">
+  <div class="top"><button class="round" data-home>🏠</button><h2>Inställningar</h2></div>
+  <section><h3>Vem godkänner?</h3><p>Används i uppläsningen, t.ex. ”Nu får mamma titta”.</p><input type="text" id="sParent"></section>
+  <section><h3>Kvällsrutin</h3><p>Görs i ordning. Ändrar du listan börjar kvällen om.</p><div id="sEve"></div></section>
+  <section><h3>Standardmorgon</h3><p>Förvalt när ni gör morgondagens schema.</p><div id="sMorn"></div></section>
+  <section><h3>Morgondagens schema</h3><button class="sbtn" id="sPlan">Öppna och ändra</button></section>
+  <section><h3>Tandborstningstimer</h3><div class="seg" id="sTimer"></div></section>
+  <section><h3>Vaggvisa</h3><p>Hur länge musiken spelar medan skärmen sakta blir mörk.</p><div class="seg" id="sLull"></div></section>
+  <section><h3>Ljud</h3><div class="seg" id="sSound"></div></section>
+  <section><h3>Namn på bilderna</h3><p>Byt t.ex. ”Mormor &amp; morfar” till ”Farmor”.</p><div id="sLabels"></div></section>
+  <section><h3>Börja om</h3><div class="seg">
+    <button class="sbtn" id="rEve">Börja om ikväll</button><button class="sbtn" id="rDay">Börja om idag</button><button class="sbtn warn" id="rAll">Radera allt</button>
+  </div></section>
+</div></div>
+
+<div id="stickerOv" class="overlay"><div class="msg">Ett klistermärke!</div><div class="stickerBig" id="stBig"></div><div class="msg">👆</div></div>
+<div id="unlockOv" class="overlay"><div class="msg" id="unlockMsg"></div><div id="unlockArt"></div><button class="next" id="unlockOk">👍</button></div>
+<div id="chooseOv" class="overlay"><div class="msg">Vem ska du natta ikväll?</div><div class="zoo" id="chooseList"></div></div>
+<div id="timerOv" class="overlay">
+  <button class="round" id="timerClose">✕</button>
+  <svg id="hg" viewBox="0 0 120 200">
+    <path d="M22 20 C22 65 54 80 56 100 C54 120 22 135 22 180 L98 180 C98 135 66 120 64 100 C66 80 98 65 98 20Z" fill="#fff" opacity=".85"/>
+    <rect id="sandTop" clip-path="url(#hgTop)" x="0" y="40" width="120" height="60" fill="#ffb300"/>
+    <rect id="sandBot" clip-path="url(#hgBot)" x="0" y="180" width="120" height="0" fill="#ffb300"/>
+    <rect id="stream" x="58.5" y="98" width="3" height="82" fill="#ffb300"/>
+    <path d="M22 20 C22 65 54 80 56 100 C54 120 22 135 22 180 L98 180 C98 135 66 120 64 100 C66 80 98 65 98 20Z" fill="none" stroke="#80deea" stroke-width="4"/>
+    <rect x="14" y="20" width="7" height="160" rx="3" fill="#8d6e63"/><rect x="99" y="20" width="7" height="160" rx="3" fill="#8d6e63"/>
+    <rect x="6" y="6" width="108" height="16" rx="7" fill="#6d4c41"/><rect x="6" y="178" width="108" height="16" rx="7" fill="#6d4c41"/>
+  </svg>
+  <div id="timerTime"></div>
+  <div id="timerMsg"></div>
+  <button class="next" id="timerDone">👍 Klart</button>
+</div>
+<div id="night"><button class="round" id="nightExit" aria-label="Avsluta (håll in)">🌙</button><div class="end"><div id="nightMoon"></div>Godnatt</div></div>
+<canvas id="confetti"></canvas>
+
+<script src="art.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
