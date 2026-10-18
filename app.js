@@ -9,6 +9,7 @@ const CARDS = [
   { id: 'pyjamas', l: 'Pyjamas', s: 'ta på pyjamasen', eve: 1 },
   { id: 'tander', l: 'Tänder', s: 'borsta tänderna', eve: 1, timer: 1 },
   { id: 'sang', l: 'Säng', s: 'hoppa i säng', eve: 1 },
+  { id: 'imorgon', l: 'Imorgon', s: 'göra morgondagens schema', eve: 1, plan: 1 },
   { id: 'vakna', l: 'Vakna', s: 'vakna' },
   { id: 'tv', l: 'Lite tv', s: 'titta på lite tv' },
   { id: 'bloja', l: 'Blöja', s: 'byta blöja' },
@@ -38,13 +39,19 @@ const praise = () => PRAISE[Math.floor(Math.random() * PRAISE.length)];
 
 // ---------- Data ----------
 const KEY = 'bildschema-v1';
-const DEF = { parent: 'mamma', evening: ['bad', 'smorj', 'pyjamas', 'tander', 'sang'],
+const DEF = { parent: 'mamma', evening: ['bad', 'tander', 'smorj', 'pyjamas', 'sang', 'imorgon'],
   morning: ['vakna', 'tv', 'bloja', 'klader', 'ytter', 'forskola'], lullaby: 3, timerMin: 2, speech: true, sound: true,
   labels: {}, animal: 'kanin', stickers: [], plans: {}, days: {} };
 let S;
 try { S = Object.assign(JSON.parse(JSON.stringify(DEF)), JSON.parse(localStorage.getItem(KEY)) || {}); }
 catch (e) { S = JSON.parse(JSON.stringify(DEF)); }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+if ((S.ver || 0) < 3) {
+  const e = S.evening;
+  if (!e.includes('imorgon')) { const i = e.indexOf('sang'); e.splice(i < 0 ? e.length : i + 1, 0, 'imorgon'); }
+  if (e.includes('bad') && e.includes('tander')) { e.splice(e.indexOf('tander'), 1); e.splice(e.indexOf('bad') + 1, 0, 'tander'); }
+  S.ver = 3; save();
+}
 const pad = n => String(n).padStart(2, '0');
 const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 // Dygnet byter klockan 04, så att en sen kväll räknas till samma dag.
@@ -192,23 +199,35 @@ function renderRoutine(pending = -1) {
     </div>`;
   }).join('');
   $$('#steps .pbox').forEach(b => holdable(b, 900, () => parentHold(+b.dataset.p)));
+  $$('#steps .kbox').forEach(b => { const i = +b.dataset.k; if (p.st[i] === 1) holdable(b, 900, () => kidUndo(i)); });
   renderBuddy();
   const rec = dayRec(), nb = $('#rNext'), all = p.st.every(s => s === 2);
   nb.style.display = eve && all ? 'flex' : 'none';
-  if (eve && all) nb.innerHTML = !rec.planned ? `${ICON.plan} Imorgon` : !rec.natta ? `${headSvg(curAnimal())} Natta` : '🌙 Sov gott';
+  if (eve && all) nb.innerHTML = !rec.planned && !S.evening.includes('imorgon') ? `${ICON.plan} Imorgon` : !rec.natta ? `${headSvg(curAnimal())} Natta` : '🌙 Sov gott';
   if (cur >= 0) { const el = $(`.step[data-i="${cur}"]`); el && setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50); }
 }
 $('#steps').addEventListener('click', e => {
-  const t = e.target.closest('[data-timer],[data-k],[data-say]'); if (!t) return;
+  const t = e.target.closest('[data-timer],[data-k],[data-say]'); if (!t || Date.now() - undoAt < 700) return;
   if (t.dataset.timer != null) return openTimer();
   if (t.dataset.k != null) return kidTap(+t.dataset.k);
-  if (t.dataset.say != null) say(lbl(stepIds()[+t.dataset.say]));
+  if (t.dataset.say != null) { const i = +t.dataset.say, id = stepIds()[i]; if (card(id).plan && mode === 'eve') return planStep(i); say(lbl(id)); }
 });
 function nudge(i) { const el = $(`.step[data-i="${i}"]`); if (!el) return; el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+let undoAt = 0;
+function kidUndo(i) {
+  const p = steps(); if (p.st[i] !== 1) return;
+  p.st[i] = 0; save(); undoAt = Date.now(); chime('soft'); renderRoutine();
+}
+function planStep(i) {
+  const p = steps(), cur = p.st.findIndex(s => s < 2);
+  if (i !== cur) { say(`Först ska vi ${spoken(stepIds()[cur])}.`); nudge(cur); return; }
+  openPlan('step');
+}
 function kidTap(i) {
   const p = steps(), ids = stepIds(), eve = mode === 'eve', cur = eve ? p.st.findIndex(s => s < 2) : i;
   if (p.st[i] >= 1) { if (p.st[i] === 1) say(`Nu får ${S.parent} titta.`); return; }
   if (eve && i !== cur) { say(`Först ska vi ${spoken(ids[cur])}.`); nudge(cur); return; }
+  if (eve && card(ids[i]).plan && !dayRec().planned) { planStep(i); return; }
   p.st[i] = 1; save(); chime('tap'); say(`Klar! Nu får ${S.parent} titta.`); renderRoutine();
 }
 function parentHold(i) {
@@ -225,13 +244,13 @@ function parentHold(i) {
   const next = p.st.findIndex(s => s < 2);
   if (next < 0) {
     setTimeout(() => chime('done'), 700);
-    if (eve) say(`${praise()} Alla stjärnor! Nu ska vi göra morgondagens schema.`);
+    if (eve) say(`${praise()} Alla stjärnor! ` + (S.evening.includes('imorgon') || dayRec().planned ? `Nu ska vi natta ${curAnimal().n}.` : 'Nu ska vi göra morgondagens schema.'));
     else { setTimeout(confetti, 700); say('Jättebra! Alla stjärnor idag!'); }
   } else say(eve ? `${praise()} Nu ska vi ${spoken(ids[next])}.` : praise());
 }
 $('#rNext').addEventListener('click', () => {
   const rec = dayRec();
-  if (!rec.planned) openPlan(true);
+  if (!rec.planned && !S.evening.includes('imorgon')) openPlan('natta');
   else if (!rec.natta || !rec.sticker) openNatta();
   else { openNatta(); startNight(); }
 });
@@ -273,7 +292,7 @@ function renderPlan() {
   planAdded = -1;
   $('#planTools').style.visibility = planSel >= 0 ? 'visible' : 'hidden';
   $('#planLib').innerHTML = CARDS.filter(c => !c.eve).map(c => `<button class="pcard" data-id="${c.id}"><div class="art">${artSvg(c.id)}</div><div class="lbl">${esc(lbl(c.id))}</div></button>`).join('');
-  $('#planDone').innerHTML = planFlow ? `${headSvg(curAnimal())} Klar` : '👍 Klar';
+  $('#planDone').innerHTML = planFlow === 'natta' ? `${headSvg(curAnimal())} Klar` : '👍 Klar';
 }
 $('#planLib').addEventListener('click', e => {
   const b = e.target.closest('[data-id]'); if (!b) return;
@@ -293,7 +312,8 @@ $('#pDel').onclick = () => { if (planSel < 0) return; S.plans[tomorrowKey()].spl
 $('#planDone').onclick = () => {
   if (!planFlow) { renderSettings(); show('settings'); return; }
   dayRec().planned = true; save(); chime('ok');
-  openNatta();
+  if (planFlow === 'step') { mode = 'eve'; show('routine'); renderRoutine(); say('Klart! Tryck på din ruta.'); }
+  else openNatta();
 };
 
 // ---------- Natta djuret ----------
