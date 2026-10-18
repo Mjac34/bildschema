@@ -8,7 +8,7 @@ const CARDS = [
   { id: 'smorj', l: 'Smörja', s: 'smörja in oss', eve: 1 },
   { id: 'pyjamas', l: 'Pyjamas', s: 'ta på pyjamasen', eve: 1 },
   { id: 'tander', l: 'Tänder', s: 'borsta tänderna', eve: 1, timer: 1 },
-  { id: 'sang', l: 'Säng', s: 'hoppa i säng', eve: 1 },
+  { id: 'sang', l: 'Säng', s: 'gå till sängen', eve: 1 },
   { id: 'imorgon', l: 'Imorgon', s: 'göra morgondagens schema', eve: 1, plan: 1 },
   { id: 'vakna', l: 'Vakna', s: 'vakna' },
   { id: 'tv', l: 'Lite tv', s: 'titta på lite tv' },
@@ -264,6 +264,11 @@ function buddyPop(id) {
   const b = $('#buddy'); renderBuddy(); b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop');
   const c = document.createElement('div'); c.className = 'popcard'; c.innerHTML = artSvg(id); b.appendChild(c); setTimeout(() => c.remove(), 1800);
 }
+$('#rAgain').addEventListener('click', () => {
+  const ids = stepIds(), p = steps(), cur = p.st.findIndex(s => s < 2), rec = dayRec();
+  if (cur < 0) say(mode === 'day' ? 'Alla stjärnor idag!' : !rec.natta ? `Nu ska vi natta ${curAnimal().n}.` : 'Nu sover vi. Sov gott!');
+  else { say(p.st[cur] === 1 ? `Nu får ${S.parent} titta.` : `Nu ska vi ${spoken(ids[cur])}.`); nudge(cur); }
+});
 $('#buddy').addEventListener('click', () => { if (unlocked().length > 1 && !dayRec().natta) openChooser(); else say(`Hej! Jag är ${curAnimal().n}.`); });
 function openChooser() {
   $('#chooseList').innerHTML = unlocked().map(a => `<button class="a" data-a="${a.id}">${animalSvg(a)}</button>`).join('');
