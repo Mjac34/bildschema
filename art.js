@@ -148,3 +148,52 @@ function sceneSvg(a, pj) {
   <g id="zzz" class="hide"><text class="z" x="200" y="214">z</text><text class="z z2" x="212" y="200">z</text><text class="z z3" x="224" y="186">Z</text></g>
   </svg>`;
 }
+
+// ---------- Potta ----------
+const pottyShape = (cx, cy, s = 1) => `<g transform="translate(${cx} ${cy}) scale(${s})"><ellipse cx="0" cy="0" rx="40" ry="9" fill="#f8bbd0" stroke="#ec407a" stroke-width="3"/><ellipse cx="0" cy="0" rx="30" ry="5" fill="#ad1457" opacity=".35"/><path d="M-40 0 Q-38 46 0 48 Q38 46 40 0 Q0 16 -40 0Z" fill="#f06292"/></g>`;
+const PANTS = (y, c = '#42a5f5') => `<path d="M28 ${y} H72 L70 ${y + 40} H54 L50 ${y + 18} L46 ${y + 40} H30Z" fill="${c}"/><rect x="26" y="${y - 4}" width="48" height="9" rx="3" fill="#1e88e5"/>`;
+const ARROW = (up, c) => `<path d="${up ? 'M50 36 V8 M37 20 L50 7 L63 20' : 'M50 6 V34 M37 22 L50 35 L63 22'}" stroke="${c}" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+const DROPS = `<g fill="#4fc3f7"><path d="M36 10 Q42 22 36 26 Q30 22 36 10Z"/><path d="M52 2 Q59 16 52 20 Q45 16 52 2Z"/><path d="M66 12 Q72 24 66 28 Q60 24 66 12Z"/></g>`;
+const BUBBLES = `<g fill="#fff" stroke="#81d4fa" stroke-width="2"><circle cx="30" cy="40" r="10"/><circle cx="50" cy="30" r="13"/><circle cx="70" cy="42" r="9"/><circle cx="58" cy="54" r="7"/></g>`;
+const POTTY_ICON = {
+  ner: `<svg viewBox="0 0 100 100">${ARROW(false, '#ef5350')}${PANTS(52)}<circle cx="27" cy="52" r="6" fill="#ffeb3b" stroke="#f9a825" stroke-width="2"/><circle cx="73" cy="52" r="6" fill="#ffeb3b" stroke="#f9a825" stroke-width="2"/></svg>`,
+  sitta: `<svg viewBox="0 0 100 100">${pottyShape(50, 48, .95)}</svg>`,
+  kissa: `<svg viewBox="0 0 100 100">${DROPS}${pottyShape(50, 52, .95)}</svg>`,
+  upp: `<svg viewBox="0 0 100 100">${ARROW(true, '#43a047')}${PANTS(52)}</svg>`,
+  tvatta: `<svg viewBox="0 0 100 100"><path d="M60 20 V10 H36" stroke="#90a4ae" stroke-width="7" fill="none" stroke-linecap="round"/><rect x="30" y="66" width="40" height="8" rx="4" fill="#4fc3f7"/>${BUBBLES}<path d="M14 72 H86 Q82 94 50 94 Q18 94 14 72Z" fill="#eceff1" stroke="#b0bec5" stroke-width="3"/></svg>`,
+};
+ART.potta = () => bg('#e0f7fa') + DROPS.replace('<g ', '<g transform="translate(0 6)" ') + pottyShape(50, 56, .95);
+ICON.potty = `<svg viewBox="0 0 100 100">${DROPS}${pottyShape(50, 52, .95)}</svg>`;
+
+// Figur för pottaövning: kroppen, tummar (bakom byxorna), byxor och armar styrs från app.js.
+function pottyKid(a) {
+  const st = `stroke="${a.d}" stroke-width="2"`;
+  return `<g id="pk">
+    ${a.id === 'kanin' ? `<circle cx="21" cy="46" r="7" fill="#fff" ${st}/>` : ''}
+    <ellipse cx="0" cy="32" rx="22" ry="26" fill="${a.c}" ${a.id === 'kanin' ? st : ''}/><ellipse cx="0" cy="34" rx="13" ry="14" fill="${a.b}"/>
+    <ellipse cx="-11" cy="57" rx="10" ry="6" fill="${a.c}" ${st}/><ellipse cx="11" cy="57" rx="10" ry="6" fill="${a.c}" ${st}/>
+    <g id="pkThumbs" fill="${a.c}" ${st}><ellipse id="thL" rx="3" ry="5"/><ellipse id="thR" rx="3" ry="5"/></g>
+    <g id="pkPants"><path d="M-23 36 H23 L22 60 H3 L0 50 L-3 60 H-22Z" fill="#42a5f5"/><rect x="-24" y="33" width="48" height="6" rx="2" fill="#1e88e5"/></g>
+    <g stroke-linecap="round"><line id="arL0" stroke="${a.d}" stroke-width="12"/><line id="arR0" stroke="${a.d}" stroke-width="12"/><line id="arL" stroke="${a.c}" stroke-width="9"/><line id="arR" stroke="${a.c}" stroke-width="9"/></g>
+    <circle id="haL" r="6" fill="${a.c}" ${st}/><circle id="haR" r="6" fill="${a.c}" ${st}/>
+    <g id="thGlow" fill="none" stroke="#ffeb3b" stroke-width="3"><circle id="glL" r="10" class="hint"/><circle id="glR" r="10" class="hint"/></g>
+    <g transform="translate(0 -2)">${head(a)}</g>
+  </g>`;
+}
+function pottyScene(a) {
+  let tiles = '';
+  for (let x = 0; x <= 360; x += 30) tiles += `<line x1="${x}" y1="0" x2="${x}" y2="230"/>`;
+  for (let y = 0; y <= 230; y += 30) tiles += `<line x1="0" y1="${y}" x2="360" y2="${y}"/>`;
+  return `<svg viewBox="0 0 360 300" id="psvg">
+    <rect width="360" height="300" fill="#e0f7fa"/><g stroke="#b2ebf2" stroke-width="2">${tiles}</g>
+    <rect y="230" width="360" height="70" fill="#80cbc4"/>
+    <rect x="302" y="210" width="18" height="26" fill="#eceff1" stroke="#b0bec5" stroke-width="2"/>
+    <path d="M326 186 V168 H306" stroke="#90a4ae" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <rect id="water" x="303" y="172" width="6" height="22" rx="3" fill="#4fc3f7" class="hide"/>
+    <path d="M268 186 H352 Q348 214 310 214 Q272 214 268 186Z" fill="#fff" stroke="#b0bec5" stroke-width="3"/>
+    <g data-ptap="1"><ellipse cx="175" cy="236" rx="40" ry="9" fill="#f8bbd0" stroke="#ec407a" stroke-width="3"/><ellipse cx="175" cy="236" rx="30" ry="5" fill="#ad1457" opacity=".35"/></g>
+    <g data-ptap="1">${pottyKid(a)}</g>
+    <path data-ptap="1" d="M135 236 Q137 282 175 284 Q213 282 215 236 Q175 252 135 236Z" fill="#f06292"/>
+    <g id="fx"></g>
+  </svg>`;
+}

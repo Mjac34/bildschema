@@ -30,6 +30,7 @@ const CARDS = [
   { id: 'doktor', l: 'Doktorn', s: 'gå till doktorn' },
   { id: 'kalas', l: 'Kalas', s: 'gå på kalas' },
   { id: 'vila', l: 'Vila hemma', s: 'vila hemma' },
+  { id: 'potta', l: 'Potta', s: 'gå på pottan' },
 ];
 const card = id => CARDS.find(c => c.id === id) || { id, l: id, s: id };
 const lbl = id => S.labels[id] || card(id).l;
@@ -41,7 +42,7 @@ const praise = () => PRAISE[Math.floor(Math.random() * PRAISE.length)];
 const KEY = 'bildschema-v1';
 const DEF = { parent: 'mamma', evening: ['bad', 'tander', 'smorj', 'pyjamas', 'sang', 'imorgon'],
   morning: ['vakna', 'tv', 'bloja', 'klader', 'ytter', 'forskola'], lullaby: 3, timerMin: 2, speech: true, sound: true,
-  labels: {}, animal: 'kanin', stickers: [], plans: {}, days: {} };
+  labels: {}, animal: 'kanin', stickers: [], potty: [], plans: {}, days: {} };
 let S;
 try { S = Object.assign(JSON.parse(JSON.stringify(DEF)), JSON.parse(localStorage.getItem(KEY)) || {}); }
 catch (e) { S = JSON.parse(JSON.stringify(DEF)); }
@@ -170,9 +171,10 @@ function renderHome() {
   $('#daySub').textContent = `${d.st.filter(x => x === 2).length} av ${d.st.length} ⭐`;
   $('#eveSub').textContent = `${e.st.filter(x => x === 2).length} av ${e.st.length} ⭐`;
   $('#bookSub').textContent = `${S.stickers.length} klistermärken`;
+  $('#pottyArt').innerHTML = ICON.potty; $('#pottySub').textContent = `${S.potty.length} ⭐`;
   $('#goDay').classList.toggle('now', !eveNow); $('#goEve').classList.toggle('now', eveNow);
 }
-function goHome() { stopNight(); closeTimer(); $$('.overlay').forEach(o => o.classList.remove('show')); renderHome(); show('home'); }
+function goHome() { pTok++; stopNight(); closeTimer(); $$('.overlay').forEach(o => o.classList.remove('show')); renderHome(); show('home'); }
 
 // ---------- Rutin (Idag / Ikväll) ----------
 function openRoutine(m) {
@@ -541,11 +543,106 @@ function tick() {
   if (parts.length) requestAnimationFrame(tick); else { cOn = false; cx.clearRect(0, 0, cv.width, cv.height); }
 }
 
+// ---------- Potta ----------
+const PS = [
+  { id: 'ner', q: 'dra ner byxorna' }, { id: 'sitta', q: 'sätta oss på pottan' }, { id: 'kissa', q: 'kissa i pottan' },
+  { id: 'upp', q: 'dra upp byxorna' }, { id: 'tvatta', q: 'tvätta händerna' },
+];
+const REST = { x: 80, y: 167, hx: 26, hy: 40, ox: 0, t: 0, thumb: 0 };
+let pStep = 0, pBusy = false, pTok = 0, pose = { ...REST };
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+function applyPose() {
+  const q = id => document.getElementById(id); if (!q('pk')) return;
+  const { x, y, hx, hy, ox, t, thumb } = pose, L = -hx + ox, Rr = hx + ox;
+  q('pk').setAttribute('transform', `translate(${x} ${y}) scale(1.5)`);
+  q('pkPants').setAttribute('transform', `translate(0 ${36 + 16 * t}) scale(1 ${1 - .45 * t}) translate(0 -36)`);
+  [['L', -15, L, 3], ['R', 15, Rr, -3]].forEach(([k, sx, hx2, d]) => {
+    for (const id of ['ar' + k, 'ar' + k + '0']) { const l = q(id); l.setAttribute('x1', sx); l.setAttribute('y1', 18); l.setAttribute('x2', hx2); l.setAttribute('y2', hy); }
+    q('ha' + k).setAttribute('cx', hx2); q('ha' + k).setAttribute('cy', hy);
+    q('th' + k).setAttribute('cx', hx2 + d); q('th' + k).setAttribute('cy', hy + 3);
+    q('gl' + k).setAttribute('cx', hx2); q('gl' + k).setAttribute('cy', hy);
+  });
+  q('thGlow').style.display = thumb ? '' : 'none';
+}
+function tween(to, ms) {
+  const tok = pTok, from = { ...pose }, t0 = performance.now();
+  return new Promise(res => {
+    const f = now => {
+      if (tok !== pTok) return res();
+      const k = Math.min(1, (now - t0) / ms), e = k < .5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      for (const key in to) pose[key] = from[key] + (to[key] - from[key]) * e;
+      applyPose(); k < 1 ? requestAnimationFrame(f) : res();
+    };
+    requestAnimationFrame(f);
+  });
+}
+function fx(html, ms) { const g = document.getElementById('fx'); g.insertAdjacentHTML('beforeend', html); setTimeout(() => { g.innerHTML = ''; }, ms); }
+function trickle() {
+  if (!S.sound) return; const a = ac(); if (!a) return; const t = a.currentTime;
+  for (let i = 0; i < 26; i++) tone(a.destination, 1400 + Math.random() * 1400, t + i * .06, .07, .04);
+  [0, .5, 1].forEach(d => bell(a.destination, 330, t + .2 + d, .05, .4));
+}
+function openPotty() {
+  pTok++; pBusy = false; pStep = 0; pose = { ...REST };
+  show('potty'); const a = curAnimal();
+  $('#poTitle').innerHTML = ICON.potty + 'Potta';
+  $('#pScene').innerHTML = pottyScene(a); applyPose(); renderPSteps();
+  $('#poReal').innerHTML = ICON.heart(false); renderPStars();
+  say(`Nu visar ${a.n} hur man gör på pottan. Tryck på ${a.n}!`);
+}
+function renderPSteps() {
+  $('#pSteps').innerHTML = PS.map((p, i) => `<button class="ps ${i < pStep ? 'ok' : ''} ${i === pStep ? 'cur' : ''}" data-ps="${i}">${POTTY_ICON[p.id]}</button>`).join('');
+  $('#poRestart').style.visibility = pStep > 0 && !pBusy ? 'visible' : 'hidden';
+}
+function renderPStars() { $('#poStars').innerHTML = ICON.star + S.potty.length; }
+async function runPStep() {
+  if (pBusy || pStep >= PS.length) return;
+  pBusy = true; renderPSteps(); const tok = pTok, a = curAnimal(), id = PS[pStep].id;
+  if (id === 'ner') {
+    await tween({ hx: 23, hy: 37 }, 700); pose.thumb = 1; applyPose(); say('Tummarna i kanten.');
+    await sleepMs(1700); if (tok !== pTok) return; say('Och dra ner byxorna!');
+    await tween({ t: 1, hy: 53 }, 1300); pose.thumb = 0; applyPose();
+  } else if (id === 'sitta') {
+    say('Sätt dig på pottan.'); await tween({ x: 175, y: 192, hx: 22, hy: 50 }, 1100);
+  } else if (id === 'kissa') {
+    say('Kiss i pottan. Plask!'); trickle();
+    fx([-40, -22, -8, 8, 22, 40].map((dx, i) => `<circle class="drop" cx="175" cy="238" r="5" fill="#4fc3f7" style="--dx:${dx}px;animation-delay:${i * .12}s"/>`).join('')
+      + '<text class="plask" x="175" y="120" text-anchor="middle" font-size="34" font-weight="900" fill="#0288d1">Plask!</text>', 2000);
+    await sleepMs(2000);
+  } else if (id === 'upp') {
+    say('Ställ dig upp.'); await tween({ x: 80, y: 167 }, 900); pose.thumb = 1; applyPose();
+    say('Tummarna i kanten, och dra upp byxorna!'); await sleepMs(1500); if (tok !== pTok) return;
+    await tween({ t: 0, hy: 37 }, 1300); pose.thumb = 0; await tween({ hx: 26, hy: 40 }, 500);
+  } else if (id === 'tvatta') {
+    say('Och tvätta händerna!'); await tween({ x: 245, hx: 6, ox: 22, hy: 28 }, 1100);
+    const w = document.getElementById('water'); w && w.classList.remove('hide');
+    fx([-14, -4, 6, 14, -8, 10].map((dx, i) => `<circle class="bub" cx="${282 + (i % 3) * 6}" cy="205" r="${5 + i % 3 * 2}" fill="#fff" stroke="#81d4fa" stroke-width="2" style="--dx:${dx}px;animation-delay:${i * .2}s"/>`).join(''), 2600);
+    for (let i = 0; i < 4; i++) { await tween({ hx: 11 }, 230); await tween({ hx: 3 }, 230); }
+    w && w.classList.add('hide'); await tween({ hx: 26, hy: 40, ox: 0 }, 600);
+  }
+  if (tok !== pTok) return;
+  pStep++; pBusy = false; renderPSteps(); chime('tap');
+  if (pStep === PS.length) { setTimeout(() => { chime('done'); confetti(); }, 300); say(`Bra jobbat ${a.n}! Nu är det din tur.`); }
+}
+$('#pScene').addEventListener('click', e => { if (e.target.closest('[data-ptap]')) runPStep(); });
+$('#pSteps').addEventListener('click', e => {
+  const b = e.target.closest('[data-ps]'); if (!b || pBusy) return; const i = +b.dataset.ps;
+  if (i === pStep) runPStep(); else if (pStep < PS.length) say(`Först ska vi ${PS[pStep].q}.`);
+});
+$('#poAgain').onclick = () => say(pStep < PS.length ? `Nu ska vi ${PS[pStep].q}.` : 'Nu är det din tur!');
+$('#poRestart').onclick = () => { pTok++; pBusy = false; pStep = 0; pose = { ...REST }; applyPose(); renderPSteps(); say('En gång till!'); };
+holdable($('#poReal'), 900, () => {
+  S.potty.push(dkey()); save(); chime('done'); confetti();
+  const from = $('#poReal').getBoundingClientRect(); flyStar(from, $('#poStars'), renderPStars);
+  say('Du kissade på pottan! Jättebra!');
+});
+
 // ---------- Start ----------
 $$('[data-home]').forEach(b => b.addEventListener('click', goHome));
 $('#goDay').onclick = () => openRoutine('day');
 $('#goEve').onclick = () => openRoutine('eve');
 $('#goBook').onclick = () => openBook(false, false);
+$('#goPotty').onclick = openPotty;
 holdable($('#gearBtn'), 1000, () => { renderSettings(); show('settings'); });
 if ('speechSynthesis' in window) speechSynthesis.getVoices();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (lull || tm)) keepAwake(); });
