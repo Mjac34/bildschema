@@ -35,13 +35,14 @@ const CARDS = [
 const card = id => CARDS.find(c => c.id === id) || { id, l: id, s: id };
 const lbl = id => S.labels[id] || card(id).l;
 const spoken = id => S.labels[id] ? S.labels[id].toLowerCase() : card(id).s;
+const pool = () => CARDS.slice().sort((a, b) => lbl(a.id).localeCompare(lbl(b.id), 'sv'));
 const PRAISE = ['Bra jobbat!', 'Toppen!', 'Snyggt!', 'Jättebra!', 'Härligt!'];
 const praise = () => PRAISE[Math.floor(Math.random() * PRAISE.length)];
 
 // ---------- Data ----------
 const KEY = 'bildschema-v1';
 const DEF = { parent: 'mamma', evening: ['bad', 'tander', 'smorj', 'pyjamas', 'sang', 'imorgon'],
-  morning: ['vakna', 'tv', 'bloja', 'klader', 'ytter', 'forskola'], lullaby: 3, timerMin: 2, speech: true, sound: true,
+  morning: ['vakna', 'tv', 'bloja', 'klader', 'ytter', 'forskola'], afternoon: ['leka', 'middag'], lullaby: 3, timerMin: 2, speech: true, sound: true,
   labels: {}, animal: 'kanin', stickers: [], potty: [], plans: {}, days: {} };
 let S;
 try { S = Object.assign(JSON.parse(JSON.stringify(DEF)), JSON.parse(localStorage.getItem(KEY)) || {}); }
@@ -53,6 +54,11 @@ if ((S.ver || 0) < 3) {
   if (e.includes('bad') && e.includes('tander')) { e.splice(e.indexOf('tander'), 1); e.splice(e.indexOf('bad') + 1, 0, 'tander'); }
   S.ver = 3; save();
 }
+if (S.ver < 4) {
+  for (const k in S.plans) if (Array.isArray(S.plans[k])) S.plans[k] = { morn: S.plans[k], aft: S.afternoon.slice() };
+  for (const k in S.days) delete S.days[k].day;
+  S.ver = 4; save();
+}
 const pad = n => String(n).padStart(2, '0');
 const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 // Dygnet byter klockan 04, så att en sen kväll räknas till samma dag.
@@ -60,6 +66,9 @@ const dkey = () => keyOf(new Date(Date.now() - 4 * 3600e3));
 const tomorrowKey = () => keyOf(new Date(Date.now() + 20 * 3600e3));
 const WD = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
 const wdOf = k => WD[new Date(k + 'T12:00').getDay()];
+const weekend = k => [0, 6].includes(new Date(k + 'T12:00').getDay());
+const forDay = (ids, k) => weekend(k) ? ids.filter(id => id !== 'forskola') : ids;
+const PARTS = { morn: 'morning', aft: 'afternoon' };
 function dayRec() { const k = dkey(); return S.days[k] || (S.days[k] = {}); }
 function prune() {
   const cut = keyOf(new Date(Date.now() - 21 * 864e5));
@@ -69,13 +78,18 @@ const unlocked = () => ANIMALS.slice(0, Math.min(ANIMALS.length, 1 + Math.floor(
 const curAnimal = () => unlocked().find(a => a.id === S.animal) || ANIMALS[0];
 
 let mode = 'eve';
-const stepIds = () => mode === 'eve' ? S.evening : (S.plans[dkey()] || S.morning);
+function idsFor(m, k = dkey()) {
+  const p = S.plans[k];
+  if (m === 'eve') return (p && p.eve) || S.evening;
+  return forDay((p && p[m]) || S[PARTS[m]], k);
+}
+const stepIds = () => idsFor(mode);
 function steps(m = mode) {
-  const rec = dayRec(), ids = m === 'eve' ? S.evening : (S.plans[dkey()] || S.morning), sig = ids.join(',');
+  const rec = dayRec(), ids = idsFor(m), sig = ids.join(',');
   if (!rec[m] || rec[m].sig !== sig) rec[m] = { sig, st: ids.map(() => 0) };
   return rec[m];
 }
-const pjDone = () => { const p = steps('eve'); return S.evening.some((id, i) => id === 'pyjamas' && p.st[i] === 2); };
+const pjDone = () => { const p = steps('eve'); return idsFor('eve').some((id, i) => id === 'pyjamas' && p.st[i] === 2); };
 
 // ---------- Ljud & tal ----------
 let AC = null;
@@ -165,34 +179,43 @@ function flyStar(from, toEl, done) {
 // ---------- Hem ----------
 function renderHome() {
   prune(); save();
-  const h = new Date().getHours(), eveNow = h >= 16 || h < 4;
-  $('#dayArt').innerHTML = ICON.sun; $('#eveArt').innerHTML = ICON.moon; $('#bookArt').innerHTML = ICON.book;
-  const d = steps('day'), e = steps('eve');
-  $('#daySub').textContent = `${d.st.filter(x => x === 2).length} av ${d.st.length} ⭐`;
-  $('#eveSub').textContent = `${e.st.filter(x => x === 2).length} av ${e.st.length} ⭐`;
+  const h = new Date(Date.now() - 4 * 3600e3).getHours() + 4, now = h < 12 ? 'morn' : h < 16 ? 'aft' : 'eve';
+  $('#mornArt').innerHTML = ICON.sun; $('#aftArt').innerHTML = ICON.aft; $('#eveArt').innerHTML = ICON.moon; $('#bookArt').innerHTML = ICON.book;
+  for (const m of ['morn', 'aft', 'eve']) {
+    const p = steps(m); $('#' + m + 'Sub').textContent = `${p.st.filter(x => x === 2).length} av ${p.st.length} ⭐`;
+    $('#go' + m[0].toUpperCase() + m.slice(1)).classList.toggle('now', m === now);
+  }
+  const k = dkey(), wd = new Date(k + 'T12:00').getDay();
+  $('#wday').textContent = wdOf(k)[0].toUpperCase() + wdOf(k).slice(1);
+  $('#week').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d => `<span class="${d === wd ? 'on' : ''} ${d % 6 === 0 ? 'we' : ''}">${WD[d][0].toUpperCase()}</span>`).join('');
   $('#bookSub').textContent = `${S.stickers.length} klistermärken`;
   $('#pottyArt').innerHTML = ICON.potty; $('#pottySub').textContent = `${S.potty.length} ⭐`;
-  $('#goDay').classList.toggle('now', !eveNow); $('#goEve').classList.toggle('now', eveNow);
 }
 function goHome() { pTok++; stopNight(); closeTimer(); $$('.overlay').forEach(o => o.classList.remove('show')); renderHome(); show('home'); }
 
 // ---------- Rutin (Idag / Ikväll) ----------
+let editing = false, moveAt = 0;
 function openRoutine(m) {
-  mode = m; show('routine'); renderRoutine();
+  mode = m; editing = false; show('routine'); renderRoutine();
   const p = steps(), ids = stepIds(), cur = p.st.findIndex(s => s < 2);
   if (m === 'eve' && unlocked().length > 1 && !dayRec().chosen && cur >= 0) openChooser();
   else if (m === 'eve' && cur >= 0) say(`Ikväll! Först ska vi ${spoken(ids[cur])}.`);
-  else if (m === 'day' && cur >= 0) say(`Idag ska vi ${ids.map(spoken).join(', ')}.`);
+  else if (m !== 'eve' && cur >= 0) say(`Idag är det ${wdOf(dkey())}. Nu ska vi ${ids.map(spoken).join(', ')}.`);
 }
 function renderRoutine(pending = -1) {
   const ids = stepIds(), p = steps(), eve = mode === 'eve';
-  $('#routine').className = 'screen active ' + mode;
-  $('#rTitle').innerHTML = eve ? ICON.moon + 'Ikväll' : ICON.sun + 'Idag';
+  $('#routine').className = 'screen active ' + (eve ? 'eve' : 'day ' + mode);
+  $('#rTitle').innerHTML = eve ? ICON.moon + 'Kväll' : mode === 'morn' ? ICON.sun + 'Morgon' : ICON.aft + 'Eftermiddag';
   const cur = eve ? p.st.findIndex(s => s < 2) : -1;
   $('#path').innerHTML = ids.map((id, i) => `<svg class="st ${p.st[i] === 2 && i !== pending ? 'on' : ''}" data-i="${i}" viewBox="0 0 100 100"><polygon points="${starPts(50, 52, 46, 20)}"/></svg>`).join('')
     + (eve ? `<span class="goal">${headSvg(curAnimal(), true)}</span>` : '');
+  $('#rMove span').textContent = editing ? '✓ Klar' : '↕️ Flytta (håll in)';
+  $('#rMove').classList.toggle('on', editing);
+  $('#steps').classList.toggle('editing', editing);
   $('#steps').innerHTML = ids.map((id, i) => {
     const s = p.st[i], c = card(id);
+    if (editing) return `<div class="step ${s === 2 ? 'ok' : ''}" data-i="${i}"><div class="pic"><div class="art">${artSvg(id)}</div><div class="lbl">${esc(lbl(id))}</div></div>
+      <div class="mv"><button data-mv="-1" data-i="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Upp">▲</button><button data-mv="1" data-i="${i}" ${i === ids.length - 1 ? 'disabled' : ''} aria-label="Ner">▼</button></div></div>`;
     const cls = ['step', s === 2 ? 'ok' : '', i === cur ? 'cur' : '', eve && cur >= 0 && i > cur ? 'later' : '', s === 1 ? 'waiting' : ''].join(' ');
     return `<div class="${cls}" data-i="${i}">
       <div class="pic" data-say="${i}"><div class="art">${artSvg(id)}</div><div class="lbl">${esc(lbl(id))}</div>${c.timer ? `<button class="tbtn" data-timer="${i}" aria-label="Timglas">${ICON.hourglass}</button>` : ''}</div>
@@ -206,14 +229,25 @@ function renderRoutine(pending = -1) {
   const rec = dayRec(), nb = $('#rNext'), all = p.st.every(s => s === 2);
   nb.style.display = eve && all ? 'flex' : 'none';
   if (eve && all) nb.innerHTML = !rec.planned && !S.evening.includes('imorgon') ? `${ICON.plan} Imorgon` : !rec.natta ? `${headSvg(curAnimal())} Natta` : '🌙 Sov gott';
-  if (cur >= 0) { const el = $(`.step[data-i="${cur}"]`); el && setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50); }
+  if (cur >= 0 && !editing) { const el = $(`.step[data-i="${cur}"]`); el && setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50); }
 }
 $('#steps').addEventListener('click', e => {
+  const mv = e.target.closest('[data-mv]'); if (mv) return moveStep(+mv.dataset.i, +mv.dataset.mv);
+  if (editing) return;
   const t = e.target.closest('[data-timer],[data-k],[data-say]'); if (!t || Date.now() - undoAt < 700) return;
   if (t.dataset.timer != null) return openTimer();
   if (t.dataset.k != null) return kidTap(+t.dataset.k);
   if (t.dataset.say != null) { const i = +t.dataset.say, id = stepIds()[i]; if (card(id).plan && mode === 'eve') return planStep(i); say(lbl(id)); }
 });
+function moveStep(i, d) {
+  const ids = stepIds().slice(), p = steps(), j = i + d; if (j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]]; [p.st[i], p.st[j]] = [p.st[j], p.st[i]];
+  const k = dkey(); (S.plans[k] || (S.plans[k] = {}))[mode] = ids; p.sig = ids.join(',');
+  save(); chime('tap'); renderRoutine();
+  const el = $(`.step[data-i="${j}"]`); if (el) { el.classList.add('nudge'); el.scrollIntoView({ block: 'nearest' }); }
+}
+holdable($('#rMove'), 800, () => { if (editing) return; editing = true; moveAt = Date.now(); chime('soft'); renderRoutine(); });
+$('#rMove').addEventListener('click', () => { if (editing && Date.now() - moveAt > 700) { editing = false; chime('ok'); renderRoutine(); } });
 function nudge(i) { const el = $(`.step[data-i="${i}"]`); if (!el) return; el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 let undoAt = 0;
 function kidUndo(i) {
@@ -247,7 +281,7 @@ function parentHold(i) {
   if (next < 0) {
     setTimeout(() => chime('done'), 700);
     if (eve) say(`${praise()} Alla stjärnor! ` + (S.evening.includes('imorgon') || dayRec().planned ? `Nu ska vi natta ${curAnimal().n}.` : 'Nu ska vi göra morgondagens schema.'));
-    else { setTimeout(confetti, 700); say('Jättebra! Alla stjärnor idag!'); }
+    else { setTimeout(confetti, 700); say('Jättebra! Alla stjärnor!'); }
   } else say(eve ? `${praise()} Nu ska vi ${spoken(ids[next])}.` : praise());
 }
 $('#rNext').addEventListener('click', () => {
@@ -268,7 +302,7 @@ function buddyPop(id) {
 }
 $('#rAgain').addEventListener('click', () => {
   const ids = stepIds(), p = steps(), cur = p.st.findIndex(s => s < 2), rec = dayRec();
-  if (cur < 0) say(mode === 'day' ? 'Alla stjärnor idag!' : !rec.natta ? `Nu ska vi natta ${curAnimal().n}.` : 'Nu sover vi. Sov gott!');
+  if (cur < 0) say(mode !== 'eve' ? 'Alla stjärnor!' : !rec.natta ? `Nu ska vi natta ${curAnimal().n}.` : 'Nu sover vi. Sov gott!');
   else { say(p.st[cur] === 1 ? `Nu får ${S.parent} titta.` : `Nu ska vi ${spoken(ids[cur])}.`); nudge(cur); }
 });
 $('#buddy').addEventListener('click', () => { if (unlocked().length > 1 && !dayRec().natta) openChooser(); else say(`Hej! Jag är ${curAnimal().n}.`); });
@@ -280,42 +314,62 @@ $('#chooseList').addEventListener('click', e => {
   const b = e.target.closest('[data-a]'); if (!b) return;
   S.animal = b.dataset.a; dayRec().chosen = true; save(); $('#chooseOv').classList.remove('show'); chime('tap');
   renderRoutine(); const p = steps(), cur = p.st.findIndex(s => s < 2);
-  say(`Ikväll nattar vi ${curAnimal().n}.` + (cur >= 0 ? ` Först ska vi ${spoken(S.evening[cur])}.` : ''));
+  say(`Ikväll nattar vi ${curAnimal().n}.` + (cur >= 0 ? ` Först ska vi ${spoken(idsFor('eve')[cur])}.` : ''));
 });
 
 // ---------- Planera morgondagen ----------
-let planFlow = false, planSel = -1, planAdded = -1;
+let planFlow = false, planSec = 'morn', planSel = -1, planAdded = -1;
+function planOf(k = tomorrowKey()) {
+  if (!S.plans[k]) { S.plans[k] = { morn: forDay(S.morning.slice(), k), aft: forDay(S.afternoon.slice(), k) }; save(); }
+  return S.plans[k];
+}
 function openPlan(flow) {
-  planFlow = flow; planSel = -1; const k = tomorrowKey();
-  if (!S.plans[k]) { S.plans[k] = S.morning.slice(); save(); }
+  planFlow = flow; planSel = -1; planSec = 'morn'; planOf();
   show('plan'); renderPlan();
-  if (flow) say('Vad ska vi göra imorgon?');
+  if (flow) say(`Imorgon är det ${wdOf(tomorrowKey())}.` + (weekend(tomorrowKey()) ? ' Då är det ingen förskola.' : '') + ' Vad ska vi göra imorgon?');
 }
 function renderPlan() {
-  const k = tomorrowKey(), list = S.plans[k];
+  const k = tomorrowKey(), plan = planOf(k);
   $('#pTitle').innerHTML = `${ICON.sun}Imorgon, ${wdOf(k)}`;
-  $('#planRow').innerHTML = list.map((id, i) => `<button class="pcard ${i === planSel ? 'sel' : ''} ${i === planAdded ? 'added' : ''}" data-i="${i}"><span class="num">${i + 1}</span><div class="art">${artSvg(id)}</div><div class="lbl">${esc(lbl(id))}</div></button>`).join('')
-    || '<div class="empty">Tryck på bilderna nedanför</div>';
+  const we = weekend(k);
+  $('#psMorn .t').textContent = we ? 'Morgon' : 'Morgon (före förskolan)';
+  $('#psAft .t').textContent = we ? 'Eftermiddag' : 'Eftermiddag (efter förskolan)';
+  for (const sec of ['morn', 'aft']) {
+    const el = $(sec === 'morn' ? '#planRowMorn' : '#planRowAft');
+    el.classList.toggle('active', sec === planSec);
+    $(sec === 'morn' ? '#psMorn' : '#psAft').classList.toggle('active', sec === planSec);
+    el.innerHTML = plan[sec].map((id, i) => {
+      const me = sec === planSec;
+      return `<button class="pcard ${me && i === planSel ? 'sel' : ''} ${me && i === planAdded ? 'added' : ''}" data-i="${i}"><span class="num">${i + 1}</span><div class="art">${artSvg(id)}</div><div class="lbl">${esc(lbl(id))}</div></button>`;
+    }).join('') || '<div class="empty">Tryck här och sedan på bilderna nedanför</div>';
+  }
   planAdded = -1;
   $('#planTools').style.visibility = planSel >= 0 ? 'visible' : 'hidden';
-  $('#planLib').innerHTML = CARDS.filter(c => !c.eve).map(c => `<button class="pcard" data-id="${c.id}"><div class="art">${artSvg(c.id)}</div><div class="lbl">${esc(lbl(c.id))}</div></button>`).join('');
+  $('#planLib').innerHTML = pool().filter(c => !(we && c.id === 'forskola')).map(c => `<button class="pcard" data-id="${c.id}"><div class="art">${artSvg(c.id)}</div><div class="lbl">${esc(lbl(c.id))}</div></button>`).join('');
   $('#planDone').innerHTML = planFlow === 'natta' ? `${headSvg(curAnimal())} Klar` : '👍 Klar';
 }
 $('#planLib').addEventListener('click', e => {
   const b = e.target.closest('[data-id]'); if (!b) return;
-  const list = S.plans[tomorrowKey()]; list.push(b.dataset.id); planAdded = list.length - 1; planSel = -1; save(); chime('tap'); say(lbl(b.dataset.id)); renderPlan();
+  const list = planOf()[planSec]; list.push(b.dataset.id); planAdded = list.length - 1; planSel = -1; save(); chime('tap'); say(lbl(b.dataset.id)); renderPlan();
 });
-$('#planRow').addEventListener('click', e => {
-  const b = e.target.closest('[data-i]'); if (!b) return;
-  const i = +b.dataset.i; planSel = planSel === i ? -1 : i; if (planSel >= 0) say(lbl(S.plans[tomorrowKey()][i])); renderPlan();
-});
+for (const [sec, sel] of [['morn', '#planRowMorn'], ['aft', '#planRowAft']]) {
+  const pick = e => {
+    const b = e.target.closest('[data-i]');
+    if (sec !== planSec) { planSec = sec; planSel = -1; }
+    if (b) { const i = +b.dataset.i; planSel = planSel === i ? -1 : i; if (planSel >= 0) say(lbl(planOf()[sec][i])); }
+    else say(sec === 'morn' ? 'Morgon' : 'Eftermiddag');
+    renderPlan();
+  };
+  $(sel).addEventListener('click', pick);
+  $(sec === 'morn' ? '#psMorn' : '#psAft').addEventListener('click', pick);
+}
 function planMove(d) {
-  const list = S.plans[tomorrowKey()], j = planSel + d; if (planSel < 0 || j < 0 || j >= list.length) return;
+  const list = planOf()[planSec], j = planSel + d; if (planSel < 0 || j < 0 || j >= list.length) return;
   [list[planSel], list[j]] = [list[j], list[planSel]]; planSel = j; save(); renderPlan();
 }
 $('#pLeft').onclick = () => planMove(-1);
 $('#pRight').onclick = () => planMove(1);
-$('#pDel').onclick = () => { if (planSel < 0) return; S.plans[tomorrowKey()].splice(planSel, 1); planSel = -1; save(); renderPlan(); };
+$('#pDel').onclick = () => { if (planSel < 0) return; planOf()[planSec].splice(planSel, 1); planSel = -1; save(); renderPlan(); };
 $('#planDone').onclick = () => {
   if (!planFlow) { renderSettings(); show('settings'); return; }
   dayRec().planned = true; save(); chime('ok');
@@ -506,12 +560,13 @@ function editList(sel, arr, pool) {
 }
 function renderSettings() {
   $('#sParent').value = S.parent;
-  editList('#sEve', S.evening, CARDS);
-  editList('#sMorn', S.morning, CARDS.filter(c => !c.eve));
+  editList('#sEve', S.evening, pool());
+  editList('#sMorn', S.morning, pool());
+  editList('#sAft', S.afternoon, pool());
   seg('#sTimer', [[1, '1 min'], [2, '2 min'], [3, '3 min']], () => S.timerMin, v => S.timerMin = v);
   seg('#sLull', [[0, 'Ingen musik'], [2, '2 min'], [3, '3 min'], [5, '5 min']], () => S.lullaby, v => S.lullaby = v);
   seg('#sSound', [['speech', `Uppläsning: ${S.speech ? 'på' : 'av'}`], ['sound', `Ljudeffekter: ${S.sound ? 'på' : 'av'}`]], () => '', v => S[v] = !S[v]);
-  $('#sLabels').innerHTML = CARDS.map(c => `<div class="erow"><div class="art">${artSvg(c.id)}</div><input type="text" data-id="${c.id}" value="${esc(lbl(c.id))}" placeholder="${esc(c.l)}"></div>`).join('');
+  $('#sLabels').innerHTML = pool().map(c => `<div class="erow"><div class="art">${artSvg(c.id)}</div><input type="text" data-id="${c.id}" value="${esc(lbl(c.id))}" placeholder="${esc(c.l)}"></div>`).join('');
 }
 $('#sParent').onchange = e => { S.parent = e.target.value.trim() || 'mamma'; save(); };
 $('#sLabels').addEventListener('change', e => {
@@ -525,7 +580,7 @@ $('#rEve').onclick = () => {
   if (rec.sticker) { const i = S.stickers.map(s => s.d).lastIndexOf(dkey()); if (i >= 0) S.stickers.splice(i, 1); }
   ['eve', 'planned', 'natta', 'sticker', 'chosen'].forEach(k => delete rec[k]); save(); alert('Klart!');
 };
-$('#rDay').onclick = () => { if (confirm('Börja om dagens schema?')) { delete dayRec().day; save(); alert('Klart!'); } };
+$('#rDay').onclick = () => { if (confirm('Börja om morgon och eftermiddag?')) { delete dayRec().morn; delete dayRec().aft; save(); alert('Klart!'); } };
 $('#rAll').onclick = () => { if (confirm('Radera allt, även samlarboken?')) { localStorage.removeItem(KEY); location.reload(); } };
 
 // ---------- Konfetti ----------
@@ -638,8 +693,9 @@ holdable($('#poReal'), 900, () => {
 });
 
 // ---------- Start ----------
-$$('[data-home]').forEach(b => b.addEventListener('click', goHome));
-$('#goDay').onclick = () => openRoutine('day');
+$$('[data-home]').forEach(b => { holdable(b, 800, goHome); b.addEventListener('click', () => { if (!['settings', 'home'].includes(curScreen)) say('Håll in huset.'); }); });
+$('#goMorn').onclick = () => openRoutine('morn');
+$('#goAft').onclick = () => openRoutine('aft');
 $('#goEve').onclick = () => openRoutine('eve');
 $('#goBook').onclick = () => openBook(false, false);
 $('#goPotty').onclick = openPotty;

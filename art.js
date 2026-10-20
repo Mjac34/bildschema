@@ -123,6 +123,7 @@ const ICON = {
   paw: `<svg viewBox="0 0 100 100"><ellipse cx="50" cy="64" rx="22" ry="18" fill="#1e88e5"/><ellipse cx="24" cy="40" rx="9" ry="11" fill="#1e88e5"/><ellipse cx="40" cy="24" rx="9" ry="11" fill="#1e88e5"/><ellipse cx="60" cy="24" rx="9" ry="11" fill="#1e88e5"/><ellipse cx="76" cy="40" rx="9" ry="11" fill="#1e88e5"/></svg>`,
   heart: on => `<svg viewBox="0 0 100 100"><path d="${HEART}" fill="${on ? '#ec407a' : 'none'}" stroke="#ec407a" stroke-width="6" ${on ? '' : 'stroke-dasharray="10 8"'}/>${on ? '<path d="M30 46 L44 60 L70 34" stroke="#fff" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' : ''}</svg>`,
   hourglass: `<svg viewBox="0 0 120 200"><path d="${GLASS}" fill="#e1f5fe" stroke="#80deea" stroke-width="6"/><path d="M40 62 H80 L63 96 H57Z" fill="#ffb300"/><path d="M32 178 Q60 140 88 178Z" fill="#ffb300"/><rect x="6" y="4" width="108" height="20" rx="8" fill="#6d4c41"/><rect x="6" y="176" width="108" height="20" rx="8" fill="#6d4c41"/></svg>`,
+  aft: `<svg viewBox="0 0 100 100">${rays(62, 46, 24, 33, 180, 360, 30, '#fb8c00', 5)}<circle cx="62" cy="46" r="19" fill="#ffa726"/>${face(62, 48, .9)}<path d="M4 82 Q36 56 70 72 Q86 66 96 72 V96 H4Z" fill="#66bb6a"/><path d="M12 74 L26 62 L40 74 V90 H12Z" fill="#ef5350"/><rect x="22" y="78" width="9" height="12" fill="#fff"/></svg>`,
   star: `<svg viewBox="0 0 100 100"><polygon points="${starPts(50, 52, 46, 20)}" fill="#ffd54f" stroke="#f9a825" stroke-width="5" stroke-linejoin="round"/></svg>`,
 };
 
